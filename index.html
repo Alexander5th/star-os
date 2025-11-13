@@ -1,0 +1,709 @@
+/**
+ * Star OS 1 - Full simulated OS in a single Java file.
+ * - GUI: Lock Screen, Home Screen, App Drawer, Control Center, Notification Panel
+ * - Apps included: Galaxy Apps (mock store), Contacts (mock), Settings, Simple Notes
+ * - Fallback: Terminal-based (console) mode if running headless (e.g. many online compilers)
+ *
+ * How to run:
+ *  - Locally: javac Main.java && java Main
+ *  - Replit: place Main.java, run. If you don't see a GUI, use the console fallback or configure Replit with a GUI (Xvfb/VNC).
+ *
+ * Password to unlock: star123
+ */
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.*;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+
+public class Main {
+    private static final String PASSWORD = "star123";
+    private static final String OS_NAME = "★ Star OS 1";
+    private JFrame frame;
+    private CardLayout cardLayout;
+    private JPanel rootPanel;
+    private HomePanel homePanel;
+    private LockPanel lockPanel;
+    private NotificationPanel notificationPanel;
+    private ControlCenterPanel controlCenterPanel;
+    private JLabel statusClockLabel;
+    private boolean notificationsVisible = false;
+    private boolean controlCenterVisible = false;
+
+    public static void main(String[] args) {
+        // Detect headless environment; if headless, fall back to console version
+        if (GraphicsEnvironment.isHeadless()) {
+            runConsoleMode();
+            return;
+        }
+
+        EventQueue.invokeLater(() -> {
+            try {
+                new Main().initAndShow();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private static void runConsoleMode() {
+        System.out.println("Running Star OS 1 (console fallback)");
+        System.out.println("Password to unlock: (enter) ");
+        java.util.Scanner sc = new java.util.Scanner(System.in);
+        String entered = sc.nextLine().trim();
+        if (!entered.equals(PASSWORD)) {
+            System.out.println("Access Denied.");
+            return;
+        }
+        System.out.println("Unlocked. Available apps: galaxy, contacts, settings, time, exit");
+        while (true) {
+            System.out.print("StarOS> ");
+            String cmd = sc.nextLine().trim().toLowerCase();
+            switch (cmd) {
+                case "galaxy":
+                    System.out.println("Galaxy Apps: Featured - Star Notes, Cosmic Calculator, Simple Paint");
+                    break;
+                case "contacts":
+                    System.out.println("Contacts:\n  - Nova (555-0101)\n  - Orion (555-0202)\n  - Vega (555-0303)");
+                    break;
+                case "settings":
+                    System.out.println("Settings: Theme=StarDark, Notifications=On");
+                    break;
+                case "time":
+                    System.out.println("Time: " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                    break;
+                case "exit":
+                    System.out.println("Shutting down Star OS. Goodbye ★");
+                    return;
+                default:
+                    System.out.println("Unknown. Try galaxy/contacts/settings/time/exit");
+            }
+        }
+    }
+
+    private void initAndShow() {
+        frame = new JFrame(OS_NAME);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(1000, 640);
+        frame.setMinimumSize(new Dimension(900, 600));
+        frame.setLocationRelativeTo(null);
+
+        cardLayout = new CardLayout();
+        rootPanel = new JPanel(cardLayout);
+
+        // Notification & Control center layers
+        JLayeredPane layeredPane = new JLayeredPane();
+        layeredPane.setPreferredSize(new Dimension(1000, 640));
+
+        // Add root (main) panel
+        JPanel mainHolder = new JPanel(new BorderLayout());
+        mainHolder.setBounds(0, 0, 1000, 640);
+
+        // Lock and Home screens as cards
+        lockPanel = new LockPanel();
+        homePanel = new HomePanel();
+
+        rootPanel.add(lockPanel, "lock");
+        rootPanel.add(homePanel, "home");
+
+        mainHolder.add(rootPanel, BorderLayout.CENTER);
+        layeredPane.add(mainHolder, JLayeredPane.DEFAULT_LAYER);
+
+        // Notification panel (slides from top)
+        notificationPanel = new NotificationPanel();
+        notificationPanel.setBounds(30, -220, 940, 220);
+        layeredPane.add(notificationPanel, JLayeredPane.PALETTE_LAYER);
+
+        // Control center (bottom overlay)
+        controlCenterPanel = new ControlCenterPanel();
+        controlCenterPanel.setBounds(200, 380, 600, 220);
+        controlCenterPanel.setVisible(false);
+        layeredPane.add(controlCenterPanel, JLayeredPane.MODAL_LAYER);
+
+        frame.add(layeredPane);
+        setupGlobalKeyboardShortcuts();
+
+        showLockScreen();
+
+        frame.setVisible(true);
+
+        // Start clock update
+        startClock();
+    }
+
+    private void setupGlobalKeyboardShortcuts() {
+        // Toggle notifications with N, control center with C
+        frame.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyChar() == 'n' || e.getKeyChar() == 'N') {
+                    toggleNotifications();
+                } else if (e.getKeyChar() == 'c' || e.getKeyChar() == 'C') {
+                    toggleControlCenter();
+                } else if (e.getKeyChar() == 'l' || e.getKeyChar() == 'L') {
+                    showLockScreen();
+                }
+            }
+        });
+    }
+
+    private void startClock() {
+        statusClockLabel = homePanel.getClockLabel();
+        Timer t = new Timer(500, e -> {
+            if (statusClockLabel != null) {
+                statusClockLabel.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            }
+        });
+        t.start();
+    }
+
+    /********************
+     * Screen control
+     ********************/
+    private void showLockScreen() {
+        cardLayout.show(rootPanel, "lock");
+        lockPanel.focusPassword();
+    }
+
+    private void showHomeScreen() {
+        cardLayout.show(rootPanel, "home");
+    }
+
+    private void toggleNotifications() {
+        if (notificationsVisible) {
+            notificationPanel.hidePanel();
+        } else {
+            notificationPanel.showPanel();
+        }
+        notificationsVisible = !notificationsVisible;
+    }
+
+    private void toggleControlCenter() {
+        controlCenterVisible = !controlCenterVisible;
+        controlCenterPanel.setVisible(controlCenterVisible);
+    }
+
+    /********************
+     * UI Panels
+     ********************/
+    private class LockPanel extends JPanel {
+        private JPasswordField passwordField;
+        private JLabel msgLabel;
+        private JButton unlockBtn;
+
+        LockPanel() {
+            setLayout(new BorderLayout());
+            setBackground(new Color(18, 18, 20));
+
+            JLabel title = new JLabel("★ Star OS", SwingConstants.CENTER);
+            title.setFont(new Font("SansSerif", Font.BOLD, 32));
+            title.setForeground(Color.WHITE);
+            title.setBorder(new EmptyBorder(30, 0, 10, 0));
+
+            JLabel subtitle = new JLabel("Welcome — Star OS 1", SwingConstants.CENTER);
+            subtitle.setForeground(new Color(200, 200, 200));
+
+            JPanel center = new JPanel();
+            center.setOpaque(false);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+            passwordField = new JPasswordField();
+            passwordField.setMaximumSize(new Dimension(400, 36));
+            passwordField.setFont(new Font("Monospaced", Font.PLAIN, 18));
+            passwordField.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+            unlockBtn = new JButton("Unlock");
+            unlockBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+            unlockBtn.setFocusPainted(false);
+
+            msgLabel = new JLabel(" ", SwingConstants.CENTER);
+            msgLabel.setForeground(Color.LIGHT_GRAY);
+
+            center.add(Box.createVerticalStrut(40));
+            center.add(title);
+            center.add(Box.createVerticalStrut(10));
+            center.add(subtitle);
+            center.add(Box.createVerticalStrut(40));
+            center.add(passwordField);
+            center.add(Box.createVerticalStrut(12));
+            center.add(unlockBtn);
+            center.add(Box.createVerticalStrut(8));
+            center.add(msgLabel);
+
+            add(center, BorderLayout.CENTER);
+
+            unlockBtn.addActionListener(e -> attemptUnlock());
+            passwordField.addActionListener(e -> attemptUnlock());
+        }
+
+        private void attemptUnlock() {
+            String entered = new String(passwordField.getPassword());
+            if (entered.equals(PASSWORD)) {
+                msgLabel.setText("Unlocking...");
+                // short delay for polish
+                Timer t = new Timer(700, e -> {
+                    showHomeScreen();
+                    passwordField.setText("");
+                });
+                t.setRepeats(false);
+                t.start();
+            } else {
+                msgLabel.setText("Access Denied");
+                passwordField.setText("");
+            }
+        }
+
+        void focusPassword() {
+            SwingUtilities.invokeLater(() -> passwordField.requestFocusInWindow());
+        }
+    }
+
+    private class HomePanel extends JPanel {
+        private JLabel clockLabel;
+
+        HomePanel() {
+            setLayout(new BorderLayout());
+            setBackground(new Color(28, 30, 34));
+
+            // Top bar
+            JPanel topBar = new JPanel(new BorderLayout());
+            topBar.setBackground(new Color(22, 24, 28));
+            topBar.setBorder(new EmptyBorder(6, 10, 6, 10));
+
+            // Left: OS name
+            JLabel osLabel = new JLabel(OS_NAME);
+            osLabel.setForeground(Color.WHITE);
+            osLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+            topBar.add(osLabel, BorderLayout.WEST);
+
+            // Center: search field
+            JTextField search = new JTextField();
+            search.setMaximumSize(new Dimension(360, 28));
+            search.setPreferredSize(new Dimension(360, 28));
+            search.setOpaque(true);
+            search.setBackground(new Color(40, 42, 46));
+            search.setForeground(Color.WHITE);
+            search.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+            topBar.add(search, BorderLayout.CENTER);
+
+            // Right: status (clock & quick buttons)
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            right.setOpaque(false);
+            clockLabel = new JLabel(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            clockLabel.setForeground(Color.WHITE);
+            JButton notifBtn = new JButton("🔔");
+            notifBtn.setFocusPainted(false);
+            notifBtn.addActionListener(e -> toggleNotifications());
+            JButton controlBtn = new JButton("⚙");
+            controlBtn.setFocusPainted(false);
+            controlBtn.addActionListener(e -> toggleControlCenter());
+            right.add(clockLabel);
+            right.add(notifBtn);
+            right.add(controlBtn);
+            topBar.add(right, BorderLayout.EAST);
+
+            add(topBar, BorderLayout.NORTH);
+
+            // Center: big grid of app icons
+            JPanel centerGrid = new JPanel(new GridLayout(3, 5, 18, 18));
+            centerGrid.setBackground(new Color(28, 30, 34));
+            centerGrid.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+            // Add app icons (buttons)
+            centerGrid.add(makeAppIcon("Galaxy Apps", e -> openGalaxyApps()));
+            centerGrid.add(makeAppIcon("Contacts", e -> openContacts()));
+            centerGrid.add(makeAppIcon("Settings", e -> openSettings()));
+            centerGrid.add(makeAppIcon("Notes", e -> openNotes()));
+            centerGrid.add(makeAppIcon("Browser", e -> showMessage("Browser", "A mock browser is not implemented in this demo.")));
+            centerGrid.add(makeAppIcon("Gallery", e -> showMessage("Gallery", "No photos yet.")));
+            centerGrid.add(makeAppIcon("Files", e -> showMessage("Files", "File manager is empty.")));
+            centerGrid.add(makeAppIcon("Music", e -> showMessage("Music", "No songs available.")));
+            centerGrid.add(makeAppIcon("Calculator", e -> showMessage("Calculator", "Try 'Galaxy Apps' for tools.")));
+            centerGrid.add(makeAppIcon("Terminal", e -> showMessage("Terminal", "CLI terminal not available in GUI demo.")));
+
+            add(centerGrid, BorderLayout.CENTER);
+
+            // Bottom dock
+            JPanel dock = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 8));
+            dock.setOpaque(false);
+            dock.setPreferredSize(new Dimension(100, 64));
+            dock.setBorder(new EmptyBorder(6, 6, 16, 6));
+
+            dock.add(makeDockButton("Home", ev -> showHomeScreen()));
+            dock.add(makeDockButton("Apps", ev -> openAppDrawer()));
+            dock.add(makeDockButton("Lock", ev -> showLockScreen()));
+            dock.add(makeDockButton("Power", ev -> {
+                int ans = JOptionPane.showConfirmDialog(frame, "Shut down Star OS?", "Shutdown", JOptionPane.YES_NO_OPTION);
+                if (ans == JOptionPane.YES_OPTION) {
+                    System.exit(0);
+                }
+            }));
+
+            add(dock, BorderLayout.SOUTH);
+        }
+
+        private JButton makeDockButton(String text, ActionListener action) {
+            JButton b = new JButton(text);
+            b.setFocusPainted(false);
+            b.addActionListener(action);
+            return b;
+        }
+
+        private JPanel makeAppIcon(String title, ActionListener action) {
+            JPanel p = new JPanel(new BorderLayout());
+            p.setOpaque(false);
+            JButton icon = new JButton();
+            icon.setPreferredSize(new Dimension(84, 84));
+            icon.setFocusPainted(false);
+            icon.setBackground(new Color(58, 68, 88));
+            icon.setForeground(Color.WHITE);
+            icon.setText(title.length() > 10 ? title.substring(0, 9) + "…" : title);
+            icon.setFont(new Font("SansSerif", Font.BOLD, 12));
+            icon.addActionListener(action);
+            JLabel label = new JLabel(title, SwingConstants.CENTER);
+            label.setForeground(Color.LIGHT_GRAY);
+            p.add(icon, BorderLayout.CENTER);
+            p.add(label, BorderLayout.SOUTH);
+            return p;
+        }
+
+        JLabel getClockLabel() {
+            return clockLabel;
+        }
+    }
+
+    private void showMessage(String title, String message) {
+        JOptionPane.showMessageDialog(frame, message, title, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /********************
+     * App features
+     ********************/
+    private void openAppDrawer() {
+        JDialog drawer = new JDialog(frame, "App Drawer", Dialog.ModalityType.APPLICATION_MODAL);
+        drawer.setSize(700, 420);
+        drawer.setLocationRelativeTo(frame);
+
+        JPanel p = new JPanel(new GridLayout(3, 6, 12, 12));
+        p.setBorder(new EmptyBorder(16, 16, 16, 16));
+        p.setBackground(new Color(26, 28, 31));
+        p.add(appIcon("Galaxy Apps", e -> { drawer.dispose(); openGalaxyApps(); }));
+        p.add(appIcon("Contacts", e -> { drawer.dispose(); openContacts(); }));
+        p.add(appIcon("Settings", e -> { drawer.dispose(); openSettings(); }));
+        p.add(appIcon("Notes", e -> { drawer.dispose(); openNotes(); }));
+        p.add(appIcon("Music", e -> showMessage("Music", "Mock music player")));
+        p.add(appIcon("Gallery", e -> showMessage("Gallery", "Mock gallery")));
+        p.add(appIcon("Files", e -> showMessage("Files", "Mock files")));
+        p.add(appIcon("Calculator", e -> showMessage("Calculator", "Mock calculator")));
+        p.add(appIcon("Browser", e -> showMessage("Browser", "Mock browser")));
+        p.add(appIcon("Terminal", e -> showMessage("Terminal", "Mock terminal")));
+        p.add(appIcon("Weather", e -> showMessage("Weather", "Sunny in Star OS")));
+        p.add(appIcon("Maps", e -> showMessage("Maps", "Stellar map not available")));
+
+        drawer.add(new JScrollPane(p));
+        drawer.setVisible(true);
+    }
+
+    private JPanel appIcon(String title, ActionListener action) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        JButton b = new JButton(title);
+        b.setPreferredSize(new Dimension(120, 60));
+        b.addActionListener(action);
+        p.add(b, BorderLayout.CENTER);
+        return p;
+    }
+
+    private void openGalaxyApps() {
+        JDialog d = new JDialog(frame, "Galaxy Apps", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setSize(700, 480);
+        d.setLocationRelativeTo(frame);
+        d.setLayout(new BorderLayout());
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBorder(new EmptyBorder(12, 12, 12, 12));
+        header.setBackground(new Color(18, 20, 22));
+        header.add(new JLabel("Galaxy Apps", SwingConstants.LEFT), BorderLayout.WEST);
+
+        JTextField search = new JTextField();
+        search.setPreferredSize(new Dimension(200, 28));
+        header.add(search, BorderLayout.EAST);
+
+        d.add(header, BorderLayout.NORTH);
+
+        JPanel list = new JPanel(new GridLayout(0, 2, 12, 12));
+        list.setBorder(new EmptyBorder(12, 12, 12, 12));
+        list.setBackground(new Color(20, 22, 24));
+
+        // Sample apps
+        list.add(appStoreEntry(d, "Star Notes", "Simple notes app", "Install", () -> showApp("Star Notes")));
+        list.add(appStoreEntry(d, "Cosmic Calc", "A handy calculator", "Install", () -> showApp("Cosmic Calc")));
+        list.add(appStoreEntry(d, "Mini Paint", "Quick sketches", "Install", () -> showApp("Mini Paint")));
+        list.add(appStoreEntry(d, "Space Music", "Play ambient tracks", "Install", () -> showApp("Space Music")));
+        list.add(appStoreEntry(d, "Pocket Maps", "Navigate the stars", "Install", () -> showApp("Pocket Maps")));
+        list.add(appStoreEntry(d, "Star Vault", "Secure your secrets", "Install", () -> showApp("Star Vault")));
+
+        d.add(new JScrollPane(list), BorderLayout.CENTER);
+
+        d.setVisible(true);
+    }
+
+    private JPanel appStoreEntry(JDialog parent, String title, String desc, String btnText, Runnable onInstall) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setPreferredSize(new Dimension(320, 90));
+        p.setBackground(new Color(30, 32, 36));
+        p.setBorder(BorderFactory.createLineBorder(new Color(50, 50, 55)));
+
+        JLabel name = new JLabel(title);
+        name.setForeground(Color.WHITE);
+        name.setBorder(new EmptyBorder(8, 8, 0, 8));
+        JLabel description = new JLabel("<html><small>" + desc + "</small></html>");
+        description.setForeground(Color.LIGHT_GRAY);
+        description.setBorder(new EmptyBorder(2, 8, 8, 8));
+
+        JButton install = new JButton(btnText);
+        install.addActionListener(e -> {
+            JOptionPane.showMessageDialog(parent, title + " installed (mock).");
+            onInstall.run();
+        });
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        right.setOpaque(false);
+        right.add(install);
+
+        p.add(name, BorderLayout.NORTH);
+        p.add(description, BorderLayout.CENTER);
+        p.add(right, BorderLayout.EAST);
+        return p;
+    }
+
+    private void showApp(String appName) {
+        JOptionPane.showMessageDialog(frame, appName + " launched (mock).", appName, JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void openContacts() {
+        JDialog d = new JDialog(frame, "Contacts", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setSize(520, 420);
+        d.setLocationRelativeTo(frame);
+        d.setLayout(new BorderLayout());
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBorder(new EmptyBorder(8, 8, 8, 8));
+        JTextField search = new JTextField();
+        top.add(search, BorderLayout.CENTER);
+        JButton add = new JButton("Add");
+        top.add(add, BorderLayout.EAST);
+
+        d.add(top, BorderLayout.NORTH);
+
+        DefaultListModel<String> model = new DefaultListModel<>();
+        model.addElement("Nova — +1 555-0101");
+        model.addElement("Orion — +1 555-0202");
+        model.addElement("Vega — +1 555-0303");
+
+        JList<String> list = new JList<>(model);
+        list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        d.add(new JScrollPane(list), BorderLayout.CENTER);
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton call = new JButton("Call");
+        JButton msg = new JButton("Message");
+        bottom.add(call);
+        bottom.add(msg);
+        d.add(bottom, BorderLayout.SOUTH);
+
+        add.addActionListener(e -> {
+            String name = JOptionPane.showInputDialog(d, "Contact name:");
+            if (name == null || name.trim().isEmpty()) return;
+            String phone = JOptionPane.showInputDialog(d, "Phone number:");
+            if (phone == null || phone.trim().isEmpty()) return;
+            model.addElement(name + " — " + phone);
+        });
+
+        call.addActionListener(e -> {
+            String selected = list.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(d, "Select a contact first.");
+                return;
+            }
+            JOptionPane.showMessageDialog(d, "Calling " + selected + " (mock).");
+        });
+
+        msg.addActionListener(e -> {
+            String selected = list.getSelectedValue();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(d, "Select a contact first.");
+                return;
+            }
+            String txt = JOptionPane.showInputDialog(d, "Message to " + selected + ":");
+            if (txt != null) JOptionPane.showMessageDialog(d, "Sent (mock).");
+        });
+
+        d.setVisible(true);
+    }
+
+    private void openSettings() {
+        JDialog d = new JDialog(frame, "Settings", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setSize(600, 480);
+        d.setLocationRelativeTo(frame);
+        d.setLayout(new BorderLayout());
+
+        JPanel left = new JPanel();
+        left.setPreferredSize(new Dimension(180, 400));
+        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
+        left.setBorder(new EmptyBorder(12, 12, 12, 12));
+        left.setBackground(new Color(20, 22, 24));
+        String[] items = {"Display", "Sound", "Notifications", "Privacy", "System"};
+        for (String it : items) {
+            JButton b = new JButton(it);
+            b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+            b.setAlignmentX(Component.LEFT_ALIGNMENT);
+            left.add(b);
+            left.add(Box.createVerticalStrut(8));
+        }
+
+        JPanel right = new JPanel();
+        right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
+        right.setBorder(new EmptyBorder(12, 12, 12, 12));
+        right.setBackground(new Color(26, 28, 30));
+        right.add(new JLabel("<html><h2>System</h2><p>Star OS 1 • Theme: StarDark</p></html>"));
+        right.add(Box.createVerticalStrut(8));
+        JCheckBox notif = new JCheckBox("Enable Notifications", true);
+        notif.setOpaque(false);
+        right.add(notif);
+        right.add(Box.createVerticalStrut(8));
+        JButton reset = new JButton("Reset to Defaults");
+        reset.addActionListener(e -> JOptionPane.showMessageDialog(d, "Defaults restored (mock)."));
+        right.add(reset);
+
+        d.add(left, BorderLayout.WEST);
+        d.add(right, BorderLayout.CENTER);
+
+        d.setVisible(true);
+    }
+
+    private void openNotes() {
+        JDialog d = new JDialog(frame, "Star Notes", Dialog.ModalityType.APPLICATION_MODAL);
+        d.setSize(640, 420);
+        d.setLocationRelativeTo(frame);
+        JTextArea area = new JTextArea();
+        area.setText("// Type your notes here...");
+        d.add(new JScrollPane(area));
+        d.setVisible(true);
+    }
+
+    /********************
+     * Overlays
+     ********************/
+    private class NotificationPanel extends JPanel {
+        private Timer slideTimer;
+        private int y;
+        NotificationPanel() {
+            setLayout(new BorderLayout());
+            setBackground(new Color(20, 22, 24));
+            setBorder(BorderFactory.createLineBorder(new Color(60, 60, 60)));
+            JLabel header = new JLabel(" Notifications ");
+            header.setForeground(Color.WHITE);
+            header.setBorder(new EmptyBorder(8, 8, 8, 8));
+            add(header, BorderLayout.NORTH);
+
+            // sample notifications
+            JPanel body = new JPanel();
+            body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+            body.setBackground(new Color(20, 22, 24));
+            body.add(makeNotification("System", "Welcome to Star OS 1!"));
+            body.add(makeNotification("Galaxy Apps", "New featured app: Star Notes"));
+            body.add(makeNotification("Contacts", "You have 3 contacts"));
+
+            add(body, BorderLayout.CENTER);
+            y = -220;
+        }
+
+        private JPanel makeNotification(String title, String text) {
+            JPanel p = new JPanel(new BorderLayout());
+            p.setOpaque(false);
+            p.setBorder(new EmptyBorder(8, 8, 8, 8));
+            JLabel t = new JLabel(title);
+            t.setForeground(Color.WHITE);
+            JLabel m = new JLabel("<html><small>" + text + "</small></html>");
+            m.setForeground(Color.LIGHT_GRAY);
+            p.add(t, BorderLayout.NORTH);
+            p.add(m, BorderLayout.CENTER);
+            return p;
+        }
+
+        void showPanel() {
+            slide( -220, 30);
+        }
+
+        void hidePanel() {
+            slide(30, -220);
+        }
+
+        private void slide(int fromY, int toY) {
+            if (slideTimer != null && slideTimer.isRunning()) slideTimer.stop();
+            y = fromY;
+            int steps = 14;
+            int delta = (toY - fromY) / steps;
+            slideTimer = new Timer(12, null);
+            slideTimer.addActionListener(new ActionListener() {
+                int count = 0;
+                public void actionPerformed(ActionEvent e) {
+                    y += delta;
+                    setBounds(30, y, 940, 220);
+                    frame.repaint();
+                    count++;
+                    if (count >= steps) {
+                        slideTimer.stop();
+                    }
+                }
+            });
+            slideTimer.start();
+        }
+    }
+
+    private class ControlCenterPanel extends JPanel {
+        ControlCenterPanel() {
+            setLayout(new GridLayout(2, 4, 12, 12));
+            setBackground(new Color(30, 32, 36));
+            setBorder(BorderFactory.createLineBorder(new Color(60, 60, 60)));
+
+            add(togglePanelButton("Wi-Fi", true));
+            add(togglePanelButton("Bluetooth", false));
+            add(togglePanelButton("Airplane", false));
+            add(togglePanelButton("Lock", false));
+
+            add(actionPanelButton("Brightness", e -> showMessage("Brightness", "Adjust brightness (mock)")));
+            add(actionPanelButton("Do Not Disturb", e -> showMessage("DND", "Toggled DND (mock)")));
+            add(actionPanelButton("Battery Saver", e -> showMessage("Battery", "Battery saver toggled (mock)")));
+            add(actionPanelButton("Settings", e -> openSettings()));
+        }
+
+        private JPanel togglePanelButton(String title, boolean initOn) {
+            JPanel p = new JPanel(new BorderLayout());
+            p.setOpaque(false);
+            JLabel l = new JLabel(title, SwingConstants.CENTER);
+            l.setForeground(Color.WHITE);
+            JToggleButton t = new JToggleButton(initOn ? "On" : "Off");
+            t.addItemListener(e -> t.setText(t.isSelected() ? "On" : "Off"));
+            p.add(l, BorderLayout.NORTH);
+            p.add(t, BorderLayout.CENTER);
+            return p;
+        }
+
+        private JPanel actionPanelButton(String title, ActionListener a) {
+            JPanel p = new JPanel(new BorderLayout());
+            p.setOpaque(false);
+            JLabel l = new JLabel(title, SwingConstants.CENTER);
+            l.setForeground(Color.WHITE);
+            JButton b = new JButton("Open");
+            b.addActionListener(a);
+            p.add(l, BorderLayout.NORTH);
+            p.add(b, BorderLayout.CENTER);
+            return p;
+        }
+    }
+}
